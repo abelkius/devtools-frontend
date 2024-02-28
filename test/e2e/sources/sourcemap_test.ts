@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
+import * as figlet from 'figlet';
 
 import {
   $$,
@@ -747,5 +748,43 @@ describe('The Elements Tab', () => {
     });
     await clickStyleValueWithModifiers('body .text', 'color', 'green', 'app.scss:6');
     await waitForElementWithTextContent('Line 12, Column 9');
+  });
+});
+
+describe('Sourcemaps Standarization Tests', async () => {
+  it('checks that the name in stacktrace in the console is unminified', async () => {
+    // this could be extracted to the test harness (maybe also the match function and the initial setup)
+    // like so:
+    // const result = prepare(generatedFile, htmlFile)
+    // assert(result, matchExpresssion)
+    const generatedFile = 'simple-throw.js';
+    const htmlFile = 'simple-throw.html';
+    const matchExpression =  /.*at\ wat/;
+    
+    // this would be 'prepare'
+    const {target, frontend} = getBrowserAndPages();
+
+    await openSourceCodeEditorForFile(generatedFile, htmlFile);
+    await step('open console', async () => {
+      await frontend.evaluate(`(async () => {
+        const Root = await import('./core/root/root.js');
+        Root.Runtime.experiments.setEnabled('evaluateExpressionsWithSourceMaps', true);
+      })()`);
+
+      await click(CONSOLE_TAB_SELECTOR);
+      await focusConsolePrompt();
+      await pasteText('outerWat();');
+      await frontend.keyboard.press('Enter');
+
+      // Wait for the console to be usable again.
+      await frontend.waitForFunction(() => {
+        return document.querySelectorAll('.console-user-command-result').length === 1;
+      });
+    });
+
+    // which would return the messages or would expose another function to get the messages
+    const messages = await getCurrentConsoleMessages();
+    // and then this would be 'assert'
+    assert.match(messages[0], matchExpression);
   });
 });
